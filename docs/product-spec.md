@@ -32,6 +32,7 @@ Behavioral design tool for AI products. PMs define "good" AI behavior through ex
    - System analyzes highly-rated vs low-rated outputs
    - Extracts patterns: length ranges, structural elements, tone, content requirements
    - Displays extracted criteria in plain English
+   - View extraction history to track how criteria evolved over time
 
 6. **Success Metrics**
    - Real-time success rate: "73% of outputs meet your standards"
@@ -51,6 +52,7 @@ Behavioral design tool for AI products. PMs define "good" AI behavior through ex
 - Simple prompt configuration (system message)
 - Star ratings + text feedback
 - AI-powered pattern extraction (use LLM to analyze what PM values)
+- Extraction history view showing evolution of criteria over time
 - Basic metrics dashboard
 - JSON export for test suites
 
@@ -108,11 +110,13 @@ Behavioral design tool for AI products. PMs define "good" AI behavior through ex
 - id, project_id, criteria (JSON), confidence_score, created_at
 - Stores extracted behavioral patterns
 - Belongs to project
+- Multiple extractions per project for history tracking
 
 #### Metrics
-- id, project_id, success_rate, criteria_breakdown (JSON), snapshot_time
+- id, project_id, extraction_id, success_rate, criteria_breakdown (JSON), snapshot_time
 - Point-in-time metrics for historical tracking
-- Belongs to project
+- Belongs to project and optionally linked to extraction
+- One metric record created per extraction for trend analysis
 
 ### API Endpoints
 
@@ -122,6 +126,8 @@ Behavioral design tool for AI products. PMs define "good" AI behavior through ex
 - `POST /api/scenarios/[id]/generate` - Generate AI output
 - `POST /api/outputs/[id]/rate` - Rate output
 - `POST /api/projects/[id]/extract` - Run pattern extraction
+- `GET /api/projects/[id]/extractions` - Get extraction history with metrics
+- `GET /api/projects/[id]/extractions/[extractionId]` - Get specific extraction details
 - `GET /api/projects/[id]/metrics` - Get current metrics
 - `GET /api/projects/[id]/export` - Export test suite
 
@@ -135,6 +141,9 @@ Behavioral design tool for AI products. PMs define "good" AI behavior through ex
 │   │   │   ├── [id]/
 │   │   │   │   ├── page.tsx          # Main eval interface
 │   │   │   │   ├── scenarios/page.tsx
+│   │   │   │   ├── insights/
+│   │   │   │   │   ├── page.tsx      # Latest extraction (current)
+│   │   │   │   │   └── history/page.tsx  # Extraction history list
 │   │   │   │   └── metrics/page.tsx
 │   │   │   └── page.tsx               # Projects list
 │   │   └── layout.tsx

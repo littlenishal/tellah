@@ -5,9 +5,10 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Plus, Settings, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, Settings, Trash2, FileText, History, BarChart3 } from 'lucide-react';
 import { AddScenarioDialog } from '@/components/add-scenario-dialog';
 import { GenerateOutputsButton } from '@/components/generate-outputs-button';
+import { EditProjectDialog } from '@/components/edit-project-dialog';
 
 interface ProjectPageProps {
   params: Promise<{ id: string }>;
@@ -80,9 +81,14 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
               </div>
             </div>
 
-            <Button variant="outline" size="icon">
-              <Settings className="h-4 w-4" />
-            </Button>
+            <EditProjectDialog
+              projectId={String(id)}
+              currentName={project.name}
+              currentDescription={project.description}
+              currentSystemPrompt={modelConfig.system_prompt || ''}
+              currentModel={modelConfig.model || 'gpt-4'}
+              currentTemperature={modelConfig.temperature ?? 0.7}
+            />
           </div>
         </div>
 
@@ -99,6 +105,57 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
             </CardContent>
           </Card>
         )}
+
+        {/* Quick Links */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <Link href={`/projects/${id}/outputs`}>
+            <Card className="hover:border-primary transition-colors cursor-pointer">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-primary" />
+                  <CardTitle className="text-lg">Outputs</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  View and rate AI-generated outputs
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href={`/projects/${id}/insights`}>
+            <Card className="hover:border-primary transition-colors cursor-pointer">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5 text-primary" />
+                  <CardTitle className="text-lg">Insights</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  Latest quality patterns and criteria
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href={`/projects/${id}/insights/history`}>
+            <Card className="hover:border-primary transition-colors cursor-pointer">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <History className="h-5 w-5 text-primary" />
+                  <CardTitle className="text-lg">History</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  Track how criteria evolved over time
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
+        </div>
 
         {/* Scenarios Section */}
         <div className="mb-6">

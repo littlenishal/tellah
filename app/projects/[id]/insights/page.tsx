@@ -4,18 +4,23 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, TrendingUp, TrendingDown, Lightbulb, CheckCircle2, Download, FileJson, FileText, AlertCircle, Info } from 'lucide-react';
+import { ArrowLeft, TrendingUp, TrendingDown, Lightbulb, CheckCircle2, Download, FileJson, FileText, AlertCircle, Info, History } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { interpretSuccessRate, interpretConfidence } from '@/lib/metrics';
 import { parseId } from '@/lib/utils';
 
 interface InsightsPageProps {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ extractionId?: string }>;
 }
 
-export default async function InsightsPage({ params }: InsightsPageProps) {
+export default async function InsightsPage({ params, searchParams }: InsightsPageProps) {
   const { id: idString } = await params;
   const id = parseId(idString);
+
+  // Check if viewing a specific extraction
+  const queryParams = searchParams ? await searchParams : {};
+  const extractionId = queryParams.extractionId ? parseId(queryParams.extractionId) : null;
 
   // Fetch project details
   const { data: project, error: projectError } = await supabaseAdmin
@@ -28,45 +33,42 @@ export default async function InsightsPage({ params }: InsightsPageProps) {
     notFound();
   }
 
-  // Fetch latest extraction
-  const { data: extraction } = await supabaseAdmin
+  // Fetch extraction (specific one if extractionId provided, otherwise latest)
+  const extractionQuery = supabaseAdmin
     .from('extractions')
-    .select('*')
-    .eq('project_id', id)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
+    .select('*, system_prompt_snapshot');
 
-  // Fetch latest metric
-  const { data: metric } = await supabaseAdmin
+  if (extractionId) {
+    extractionQuery.eq('id', extractionId);
+  } else {
+    extractionQuery
+      .eq('project_id', id)
+      .order('created_at', { ascending: false })
+      .limit(1);
+  }
+
+  const { data: extraction } = await extractionQuery.single();
+
+  // Fetch metric (for the specific extraction if provided, otherwise latest)
+  const metricQuery = supabaseAdmin
     .from('metrics')
-    .select('*')
-    .eq('project_id', id)
-    .order('snapshot_time', { ascending: false })
-    .limit(1)
-    .single();
+    .select('*');
 
-  // Fetch count of rated outputs - use same approach as export route
-  const { data: projectScenarios } = await supabaseAdmin
-    .from('scenarios')
-    .select('id')
-    .eq('project_id', id);
+  if (extractionId) {
+    metricQuery.eq('extraction_id', extractionId);
+  } else {
+    metricQuery
+      .eq('project_id', id)
+      .order('snapshot_time', { ascending: false })
+      .limit(1);
+  }
 
-  const scenarioIds = projectScenarios?.map(s => s.id) || [];
+  const { data: metric } = await metricQuery.single();
 
-  // Count distinct outputs that have ratings
-  const { data: ratedOutputs } = await supabaseAdmin
-    .from('ratings')
-    .select('output_id')
-    .in('output_id',
-      await supabaseAdmin
-        .from('outputs')
-        .select('id')
-        .in('scenario_id', scenarioIds)
-        .then(({ data }) => data?.map(o => o.id) || [])
-    );
-
-  const ratedCount = new Set(ratedOutputs?.map(r => r.output_id) || []).size;
+  // Use the rated_output_count from the extraction snapshot
+  // This ensures historical extractions show the correct confidence based on
+  // the number of ratings that existed at extraction time, not current ratings
+  const ratedCount = extraction?.rated_output_count || 0;
 
   if (!extraction) {
     return (
@@ -152,6 +154,12 @@ export default async function InsightsPage({ params }: InsightsPageProps) {
             {/* Export Buttons */}
             <div className="flex gap-2">
               <Button variant="outline" asChild>
+                <Link href={`/projects/${id}/insights/history`}>
+                  <History className="mr-2 h-4 w-4" />
+                  View History
+                </Link>
+              </Button>
+              <Button variant="outline" asChild>
                 <a href={`/api/projects/${id}/export?format=json`} download>
                   <FileJson className="mr-2 h-4 w-4" />
                   Export JSON
@@ -189,6 +197,23 @@ export default async function InsightsPage({ params }: InsightsPageProps) {
               </Alert>
             )}
           </div>
+        )}
+
+        {/* System Prompt Snapshot */}
+        {extraction.system_prompt_snapshot && (
+          <Card className="mb-6 border-primary/20">
+            <CardHeader>
+              <CardTitle className="text-lg">System Prompt (Snapshot)</CardTitle>
+              <CardDescription>
+                This was the prompt being evaluated at the time of this extraction
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap font-mono bg-muted/50 p-4 rounded-md">
+                {extraction.system_prompt_snapshot}
+              </p>
+            </CardContent>
+          </Card>
         )}
 
         {/* Summary */}

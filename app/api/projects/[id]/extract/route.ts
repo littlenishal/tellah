@@ -30,19 +30,41 @@ export async function POST(request: Request, { params }: RouteParams) {
       );
     }
 
-    // Fetch all outputs with ratings and scenarios
+    // Get the system prompt from project config
+    const modelConfig = project.model_config as { system_prompt?: string };
+    const systemPrompt = modelConfig.system_prompt || '';
+
+    // Get the last extraction timestamp to determine which ratings are new
+    const { data: lastExtraction } = await supabaseAdmin
+      .from('extractions')
+      .select('created_at')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    const lastExtractionTime = lastExtraction?.created_at || '1970-01-01T00:00:00Z';
+
+    // Fetch outputs with ratings created AFTER the last extraction
+    // This ensures each extraction analyzes only the current iteration's ratings
     const { data: outputs, error: outputsError } = await supabaseAdmin
       .from('outputs')
       .select(`
         *,
-        ratings (*),
+        ratings!inner (
+          id,
+          stars,
+          feedback_text,
+          tags,
+          created_at
+        ),
         scenario:scenarios (
           id,
           input_text
         )
       `)
       .eq('scenario.project_id', projectId)
-      .not('ratings', 'is', null);
+      .gt('ratings.created_at', lastExtractionTime);
 
     if (outputsError) {
       console.error('Error fetching outputs:', outputsError);
@@ -52,14 +74,18 @@ export async function POST(request: Request, { params }: RouteParams) {
       );
     }
 
-    // Filter to only outputs that have ratings
+    // Filter to only outputs that have new ratings
     const ratedOutputs = outputs.filter((output: any) =>
       output.ratings && output.ratings.length > 0
     );
 
     if (ratedOutputs.length === 0) {
+      const errorMessage = lastExtraction
+        ? 'No new ratings found since the last extraction. Please rate some outputs before running another analysis.'
+        : 'No rated outputs found. Please rate at least a few outputs before analyzing patterns.';
+
       return NextResponse.json(
-        { error: 'No rated outputs found. Please rate at least a few outputs before analyzing patterns.' },
+        { error: errorMessage },
         { status: 400 }
       );
     }
@@ -83,7 +109,9 @@ export async function POST(request: Request, { params }: RouteParams) {
       messages: [
         {
           role: 'system',
-          content: `You are an expert at analyzing AI output quality patterns. You will be given a set of AI outputs with star ratings (1-5), feedback, and tags from a product manager.
+          content: `You are an expert at analyzing AI output quality patterns. You will be given a set of rated AI outputs from the most recent iteration.
+
+${lastExtraction ? `NOTE: This is an incremental analysis. You are analyzing only the NEW ratings since the last extraction, not all historical ratings. Focus on patterns from this specific set of ${ratedOutputs.length} outputs.` : `This is the first extraction for this project.`}
 
 Your task is to identify patterns that distinguish good outputs (4-5 stars) from poor outputs (1-3 stars). Focus on:
 1. Length patterns (word count, detail level)
@@ -91,7 +119,7 @@ Your task is to identify patterns that distinguish good outputs (4-5 stars) from
 3. Structure patterns (format, organization, use of lists/paragraphs)
 4. Content patterns (specificity, examples, actionability)
 
-Provide actionable criteria that can be used to evaluate future outputs.
+Provide actionable criteria that can be used to evaluate future outputs. Your summary should accurately reflect the number of outputs you're analyzing.
 
 Return your analysis as a JSON object with this structure:
 {
@@ -126,13 +154,15 @@ Return your analysis as a JSON object with this structure:
     // Calculate confidence score based on number of ratings
     const confidenceScore = Math.min(0.9, ratedOutputs.length / 20);
 
-    // Save extraction to database
+    // Save extraction to database with snapshots
     const { data: extraction, error: extractionError } = await supabaseAdmin
       .from('extractions')
       .insert({
         project_id: projectId,
         criteria: analysisResult,
         confidence_score: confidenceScore,
+        rated_output_count: ratedOutputs.length,
+        system_prompt_snapshot: systemPrompt,
       })
       .select()
       .single();
@@ -160,6 +190,7 @@ Return your analysis as a JSON object with this structure:
       .from('metrics')
       .insert({
         project_id: projectId,
+        extraction_id: extraction.id,
         success_rate: successRate,
         criteria_breakdown: criteriaBreakdown || {},
       })

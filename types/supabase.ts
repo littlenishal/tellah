@@ -16,6 +16,8 @@ export type Database = {
           criteria: Json
           id: number
           project_id: number | null
+          rated_output_count: number
+          system_prompt_snapshot: string
         }
         Insert: {
           confidence_score?: number | null
@@ -23,6 +25,8 @@ export type Database = {
           criteria: Json
           id?: never
           project_id?: number | null
+          rated_output_count?: number
+          system_prompt_snapshot: string
         }
         Update: {
           confidence_score?: number | null
@@ -30,6 +34,8 @@ export type Database = {
           criteria?: Json
           id?: never
           project_id?: number | null
+          rated_output_count?: number
+          system_prompt_snapshot?: string
         }
         Relationships: [
           {
@@ -44,6 +50,7 @@ export type Database = {
       metrics: {
         Row: {
           criteria_breakdown: Json | null
+          extraction_id: number | null
           id: number
           project_id: number | null
           snapshot_time: string | null
@@ -51,6 +58,7 @@ export type Database = {
         }
         Insert: {
           criteria_breakdown?: Json | null
+          extraction_id?: number | null
           id?: never
           project_id?: number | null
           snapshot_time?: string | null
@@ -58,12 +66,20 @@ export type Database = {
         }
         Update: {
           criteria_breakdown?: Json | null
+          extraction_id?: number | null
           id?: never
           project_id?: number | null
           snapshot_time?: string | null
           success_rate?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "metrics_extraction_id_fkey"
+            columns: ["extraction_id"]
+            isOneToOne: false
+            referencedRelation: "extractions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "metrics_project_id_fkey"
             columns: ["project_id"]
