@@ -1,0 +1,21 @@
+# Supabase local configuration
+
+project_id = "tellah-local"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+max_rows = 1000
+
+[db]
+port = 54322
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+# We'll configure this when we add auth
+site_url = "http://localhost:3000"
